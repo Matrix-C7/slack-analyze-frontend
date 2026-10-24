@@ -1,0 +1,145 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --bg-subtle: #f7f7f8;
+  --bg-hover: #f2f2f4;
+  --border: #e4e4e7;
+  --text: #1d1c1d;
+  --muted: #616061;
+  --accent: #1264a3;
+  --rail: #2a0a2b;
+  --rail-2: #3d0f3e;
+  --sidebar: #3f0e40;
+  --sidebar-hover: #350d36;
+  --sidebar-active: #1164a3;
+  --sidebar-text: #cfc3cf;
+  --mark: #fff0b3;
+  --good: #007a5a;
+  --warn: #b26b00;
+  --bad: #e01e5a;
+  /* charts (dataviz reference palette, light steps) */
+  --series-1: #2a78d6;
+  --grid: #ececec;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #1a1d21;
+    --bg-subtle: #222529;
+    --bg-hover: #27292d;
+    --border: #35373b;
+    --text: #d1d2d3;
+    --muted: #ababad;
+    --accent: #1d9bd1;
+    --rail: #121016;
+    --rail-2: #1b1820;
+    --sidebar: #19171d;
+    --sidebar-hover: #27242c;
+    --sidebar-active: #1164a3;
+    --sidebar-text: #b9b9bb;
+    --mark: #5c4b00;
+    --good: #2bac76;
+    --warn: #e8a33b;
+    --bad: #f0587e;
+    --series-1: #3987e5;
+    --grid: #2f3236;
+  }
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Keyboard focus is always visible; mouse clicks don't leave rings behind. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* Slim scrollbars like Slack; the thumb only darkens on hover. */
+.scroll-slim {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 35%, transparent) transparent;
+}
+.scroll-slim:hover {
+  scrollbar-color: color-mix(in srgb, var(--muted) 55%, transparent) transparent;
+}
+.scroll-slim::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.scroll-slim::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 35%, transparent) padding-box;
+}
+.scroll-slim:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--muted) 55%, transparent);
+}
+
+/* Loading placeholder blocks */
+.skeleton {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--bg-hover) 25%, color-mix(in srgb, var(--bg-hover) 40%, var(--bg)) 50%, var(--bg-hover) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+.skeleton-dark {
+  background: linear-gradient(90deg, rgb(255 255 255 / 0.08) 25%, rgb(255 255 255 / 0.16) 50%, rgb(255 255 255 / 0.08) 75%);
+  background-size: 200% 100%;
+}
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+.flash {
+  animation: flash 2.4s ease-out;
+}
+@keyframes flash {
+  0%,
+  40% {
+    background: var(--mark);
+  }
+  100% {
+    background: transparent;
+  }
+}

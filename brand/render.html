@@ -1,0 +1,23 @@
+<!doctype html><html><body style="margin:0;background:#888">
+<pre id="out"></pre>
+<script>
+// Rasterizes the brand SVGs into PNG data URLs at each size (read back with --dump-dom).
+const jobs = [['logo-small.svg', 16], ['logo.svg', 32], ['logo.svg', 48], ['logo.svg', 128], ['logo.svg', 180], ['logo.svg', 512]];
+(async () => {
+  const lines = [];
+  for (const [src, size] of jobs) {
+    const svg = await (await fetch(src)).text();
+    const img = new Image();
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, size, size);
+    lines.push(`${size} ${c.toDataURL('image/png')}`);
+    document.body.append(Object.assign(c, { style: 'margin:8px' }));
+  }
+  document.getElementById('out').textContent = lines.join('\n');
+})();
+</script></body></html>

@@ -1,0 +1,17 @@
+{
+  // Ctrl+Shift+P -> "Tasks: Run Task" -> "dev: frontend" (start slack-analyze-backend first)
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "dev: frontend",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": {
+        "env": { "NEXT_PUBLIC_API_URL": "http://localhost:4000" }
+      },
+      "isBackground": true,
+      "presentation": { "panel": "dedicated", "group": "dev" },
+      "problemMatcher": []
+    }
+  ]
+}
