@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { EyeOff, Users } from 'lucide-react';
+import { EyeOff } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import type { Account } from '@/lib/api';
 import { fmtNumber, fmtRelative } from '@/lib/format';
@@ -15,7 +15,7 @@ function accountStatus(a: Account) {
 }
 
 /**
- * "View as" tabs above the main content: "All accounts" plus one tab per Slack account (avatar, name, status).
+ * "View as" tabs above the main content: one tab per Slack account (avatar, name, status).
  * Switching changes what the sidebar, conversation view, search, analytics and sync pages show.
  */
 export function AccountTabs({ className }: { className?: string }) {
@@ -69,16 +69,6 @@ export function AccountTabs({ className }: { className?: string }) {
       <div className="flex items-center gap-2 px-3 pt-1.5 md:px-4">
         <span className="flex-none text-[10px] font-semibold uppercase tracking-[0.06em] text-muted max-sm:hidden">View as</span>
         <div ref={bar} role="tablist" aria-label="View as Slack account" className="scroll-slim flex min-w-0 flex-1 gap-1 overflow-x-auto pb-2">
-          {tab(
-            'all',
-            !account,
-            () => setAccountId(null),
-            <span className={clsx('grid h-6 w-6 flex-none place-items-center rounded-md', !account ? 'bg-accent text-white' : 'bg-hover text-muted')}>
-              <Users size={13} />
-            </span>,
-            'All accounts',
-            `${accounts.length} account${accounts.length === 1 ? '' : 's'} combined`,
-          )}
           {accounts.map((a) =>
             tab(
               a.id,

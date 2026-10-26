@@ -10,7 +10,7 @@ interface WorkspaceCtx {
   setWorkspaceId: (id: string) => void;
   /** Slack accounts (one per browser that captured) in the selected workspace. */
   accounts: Account[];
-  /** The account whose view is shown; null = all accounts combined. */
+  /** The account whose view is shown; defaults to the first account, null only when there are none. */
   account: Account | null;
   setAccountId: (id: string | null) => void;
   isLoading: boolean;
@@ -58,7 +58,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       workspaces,
       workspace,
       accounts,
-      account: accounts.find((a) => a.id === selectedAccount) ?? null,
+      // No combined view: fall back to the first account when none (or a gone one) is selected.
+      account: accounts.find((a) => a.id === selectedAccount) ?? accounts[0] ?? null,
       isLoading,
       error,
       setWorkspaceId: (id) => {
