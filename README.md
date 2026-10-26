@@ -39,7 +39,7 @@ Or in VS Code / Cursor: **Tasks: Run Task → dev: frontend**. Copy [.env.exampl
 
 ## Deploy (Vercel)
 
-Import this repo in Vercel (root directory = repo root, framework Next.js) and set `NEXT_PUBLIC_API_URL` to the backend's URL, e.g. `https://slack-analyze-api.onrender.com`. On the backend set `COOKIE_SAMESITE=none`, `COOKIE_SECURE=true` and `TRUST_PROXY=true` (already in its `render.yaml`).
+Import this repo in Vercel (root directory = repo root, framework Next.js) and set `NEXT_PUBLIC_API_URL` to the backend project, e.g. `https://slack-analyze-api.vercel.app`. The backend is its own Vercel project. On Vercel it already uses a cross-site session cookie (`SameSite=None`, `Secure`) and trusts the proxy.
 
 ## App mark
 

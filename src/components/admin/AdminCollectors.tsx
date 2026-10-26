@@ -71,6 +71,8 @@ function PushSettings({ k, onClose, onSent }: { k: AdminCollector; onClose: () =
     autoIntervalMinutes: 60,
     incremental: true,
     liveCapture: true,
+    keepSlackActive: true,
+    keepSlackActiveMinutes: 5,
     captureThreads: true,
     verifyPass: true,
     loadPatienceSec: 60,
@@ -79,7 +81,7 @@ function PushSettings({ k, onClose, onSent }: { k: AdminCollector; onClose: () =
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = <K extends keyof typeof s>(key: K, v: (typeof s)[K]) => setS({ ...s, [key]: v });
-  const toggle = (key: 'autoEnabled' | 'incremental' | 'liveCapture' | 'captureThreads' | 'verifyPass', label: string) => (
+  const toggle = (key: 'autoEnabled' | 'incremental' | 'liveCapture' | 'keepSlackActive' | 'captureThreads' | 'verifyPass', label: string) => (
     <label className="flex items-center gap-2 text-sm">
       <input type="checkbox" checked={s[key]} onChange={(e) => set(key, e.target.checked)} /> {label}
     </label>
@@ -133,6 +135,15 @@ function PushSettings({ k, onClose, onSent }: { k: AdminCollector; onClose: () =
             ))}
           </select>
         </Field>
+        <Field label="Keep Slack tab active — check every" hint="Selects the Slack tab again when another tab is selected in its window">
+          <select disabled={!s.keepSlackActive} value={s.keepSlackActiveMinutes} onChange={(e) => set('keepSlackActiveMinutes', Number(e.target.value))} className={inputCls}>
+            {[1, 5, 10, 15, 30].map((m) => (
+              <option key={m} value={m}>
+                {m} min
+              </option>
+            ))}
+          </select>
+        </Field>
         <Field label="Load patience (s)" hint="How long to wait for Slack to load older history">
           <input type="number" min={10} max={600} value={s.loadPatienceSec} onChange={(e) => set('loadPatienceSec', Number(e.target.value) || 60)} className={inputCls} />
         </Field>
@@ -144,6 +155,7 @@ function PushSettings({ k, onClose, onSent }: { k: AdminCollector; onClose: () =
         {toggle('autoEnabled', 'Auto-sync selected conversations')}
         {toggle('incremental', 'Incremental auto-sync')}
         {toggle('liveCapture', 'Live capture')}
+        {toggle('keepSlackActive', 'Keep Slack tab active')}
         {toggle('captureThreads', 'Capture thread replies')}
         {toggle('verifyPass', 'Verification pass')}
       </div>
