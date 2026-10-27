@@ -6,11 +6,47 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import useSWR from 'swr';
-import { fetcher, qs, type Channel, type ConversationType } from '@/lib/api';
+import { fetcher, qs, type Channel, type ChannelPeer, type ConversationType } from '@/lib/api';
 import { fmtCompact, isDm } from '@/lib/format';
 import { useLiveEvents } from '@/lib/live';
 import { useWorkspace } from '@/lib/workspace';
 import { Avatar, WorkspaceLogo } from './Avatar';
+
+/** Slack photo for a DM, or a pair of photos for a group DM. Channels keep their hash or lock icon. */
+export function ConversationAvatar({
+  type,
+  name,
+  peers,
+  size = 20,
+}: {
+  type: ConversationType;
+  name: string;
+  peers?: ChannelPeer[];
+  size?: number;
+}) {
+  if (!isDm(type)) {
+    return (
+      <span className="flex-none opacity-80" style={{ width: size }}>
+        <ChannelIcon type={type} size={size} />
+      </span>
+    );
+  }
+  const people = peers?.length ? peers : [{ name, avatarUrl: null }];
+  if (people.length === 1) {
+    return <Avatar name={people[0].name} url={people[0].avatarUrl} size={size} />;
+  }
+  const shown = people.slice(0, 2);
+  const small = Math.round(size * 0.72);
+  return (
+    <span className="relative flex-none" style={{ width: size, height: size }} aria-hidden>
+      {shown.map((p, i) => (
+        <span key={`${p.name}-${i}`} className="absolute" style={{ left: i === 0 ? 0 : size - small, top: i === 0 ? 0 : size - small, zIndex: i + 1 }}>
+          <Avatar name={p.name} url={p.avatarUrl} size={small} className="ring-2 ring-side" />
+        </span>
+      ))}
+    </span>
+  );
+}
 
 export function ChannelIcon({ type, size = 15 }: { type: ConversationType; size?: number }) {
   if (type === 'private') return <Lock size={size - 1} />;
@@ -55,30 +91,32 @@ function Section({
               <li key={c.id}>
                 <Link
                   href={`/c/${workspaceId}/${c.id}`}
+                  prefetch={false}
                   onClick={onNavigate}
                   className={clsx(
                     'mx-2 flex items-center gap-2 rounded-md px-2.5 py-[5px] text-[15px] transition-colors duration-100',
                     active ? 'bg-side-active font-semibold text-white shadow-sm' : 'hover:bg-side-hover hover:text-white',
                     empty && !active && 'opacity-50',
                   )}
-                  title={`${c.name} · ${c.messageCount} messages${
+                  title={`${c.name} · ${c.unreadCount} unread · ${c.messageCount} messages${
                     c.accounts.length ? ` · captured by ${c.accounts.map((a) => a.name).join(', ')}` : ''
                   }`}
                 >
-                  {c.type === 'dm' ? (
-                    <Avatar name={c.name} size={18} />
-                  ) : (
-                    <span className="w-[18px] flex-none opacity-80">
-                      <ChannelIcon type={c.type} />
-                    </span>
-                  )}
-                  <span className="truncate">{c.name}</span>
+                  <ConversationAvatar type={c.type} name={c.name} peers={c.peers} />
+                  <span className={clsx('truncate', c.unreadCount > 0 && !active && 'font-bold text-white')}>{c.name}</span>
                   {c.isHidden && (
                     <span title="Hidden from viewers" className="flex-none opacity-70">
                       <EyeOff size={13} />
                     </span>
                   )}
-                  {c.messageCount > 0 && <span className="ml-auto text-xs tabular-nums opacity-60">{fmtCompact(c.messageCount)}</span>}
+                  {c.unreadCount > 0 && (
+                    <span
+                      className="ml-auto min-w-[18px] rounded-full bg-white px-1.5 text-center text-[11px] font-black leading-[18px] text-[#3f0e40]"
+                      aria-label={`${c.unreadCount} unread`}
+                    >
+                      {c.unreadCount > 999 ? '999+' : c.unreadCount}
+                    </span>
+                  )}
                 </Link>
               </li>
             );

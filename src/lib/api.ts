@@ -47,6 +47,12 @@ export interface AccountRef {
   name: string;
 }
 
+/** Someone a direct message is with, including their Slack photo when we have it. */
+export interface ChannelPeer {
+  name: string;
+  avatarUrl: string | null;
+}
+
 export interface Channel {
   id: string;
   name: string;
@@ -56,6 +62,10 @@ export interface Channel {
   reachedStart: boolean;
   lastSyncedAt: string | null;
   messageCount: number;
+  /** Messages newer than this dashboard user's last visit. The whole history counts until the conversation is opened. */
+  unreadCount: number;
+  /** DM and group-DM participants the sidebar name refers to. Empty for channels. */
+  peers: ChannelPeer[];
   firstMessageAt: string | null;
   lastMessageAt: string | null;
   accounts: AccountRef[];
@@ -72,6 +82,7 @@ export interface ChannelDetail {
   messageCount: number;
   memberCount: number;
   firstMessageAt: string | null;
+  peers: ChannelPeer[];
   accounts: AccountRef[];
 }
 

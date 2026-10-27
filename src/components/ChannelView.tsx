@@ -2,16 +2,16 @@
 
 import { CalendarRange, CheckCircle2, Loader2, Menu, MessagesSquare, Search, Users } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { apiSend, fetcher, qs, type Channel, type ChannelDetail, type Message, type MessagePage } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { dayKey, dayLabel, fmtDate, fmtNumber, fmtRelative, typeLabel } from '@/lib/format';
+import { dayKey, dayLabel, fmtDate, fmtNumber, fmtRelative, isDm, typeLabel } from '@/lib/format';
 import { useLiveEvents } from '@/lib/live';
 import { useWorkspace } from '@/lib/workspace';
 import { useMobileSidebar } from './AppShell';
-import { ChannelIcon } from './ChannelSidebar';
+import { ChannelIcon, ConversationAvatar } from './ChannelSidebar';
 import { Confirm } from './admin/ui';
 import { MessageItem } from './MessageItem';
 import { ThreadPanel } from './ThreadPanel';
@@ -30,6 +30,7 @@ function groupByDay(messages: Message[]): Message[][] {
 }
 
 export function ChannelView({ workspaceId, channelId }: { workspaceId: string; channelId: string }) {
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const focusTs = searchParams.get('ts');
   const openThreadTs = searchParams.get('thread'); // set by notifications for thread replies
@@ -54,7 +55,7 @@ export function ChannelView({ workspaceId, channelId }: { workspaceId: string; c
       .sort((a, b) => b.lastMessageAt!.localeCompare(a.lastMessageAt!))[0];
     router.replace(latest ? `/c/${workspaceId}/${latest.id}` : '/');
   }, [accountScoped, accountChannels, channelId, workspaceId, router]);
-  const { mutate: mutateThread } = useSWRConfig();
+  const { mutate } = useSWRConfig();
   const [threadOf, setThreadOf] = useState<Message | null>(null);
   const [deleting, setDeleting] = useState<Message | null>(null);
   useEffect(() => setThreadOf(null), [workspaceId, channelId]);
@@ -97,6 +98,29 @@ export function ChannelView({ workspaceId, channelId }: { workspaceId: string; c
       cancelled = true;
     };
   }, [base, focusTs, openThreadTs]);
+
+  // Opening the latest messages marks them read, so the sidebar badge drops. History jumps leave newer messages unread.
+  // Prefetched sidebar links must not count: only the conversation currently in the address bar is read.
+  const markedRead = useRef('');
+  useEffect(() => {
+    if (pathname !== `/c/${workspaceId}/${channelId}`) return;
+    if (loading !== null || hasNewer || messages.length === 0) return;
+    const ts = messages[messages.length - 1].ts;
+    const key = `${base}:${ts}`;
+    if (markedRead.current === key) return;
+    markedRead.current = key;
+    let cancelled = false;
+    apiSend('POST', `${base}/read`, { ts })
+      .then(() => {
+        if (!cancelled) mutate((k) => typeof k === 'string' && k.startsWith('/api/channels?'));
+      })
+      .catch(() => {
+        if (markedRead.current === key) markedRead.current = '';
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, workspaceId, channelId, loading, hasNewer, messages, base, mutate]);
 
   // Scroll positioning after renders
   useLayoutEffect(() => {
@@ -190,7 +214,12 @@ export function ChannelView({ workspaceId, channelId }: { workspaceId: string; c
           </button>
           <div className="min-w-0 flex-1">
             <h1 className="flex items-center gap-1.5 text-lg font-black">
-              {channel && <ChannelIcon type={channel.type} size={17} />}
+              {channel &&
+                (isDm(channel.type) ? (
+                  <ConversationAvatar type={channel.type} name={name} peers={channel.peers} size={28} />
+                ) : (
+                  <ChannelIcon type={channel.type} size={17} />
+                ))}
               <span className="truncate">{name}</span>
             </h1>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-muted">
@@ -342,7 +371,7 @@ export function ChannelView({ workspaceId, channelId }: { workspaceId: string; c
             await apiSend('DELETE', `/api/admin/messages/${deleting.id}`);
             setMessages((list) => list.filter((x) => x.id !== deleting.id));
             if (threadOf?.id === deleting.id) setThreadOf(null);
-            mutateThread(`/api/channels/${workspaceId}/${channelId}/threads/${threadOf?.ts}`);
+            mutate(`/api/channels/${workspaceId}/${channelId}/threads/${threadOf?.ts}`);
             refreshChannel();
           }}
           onClose={() => setDeleting(null)}
