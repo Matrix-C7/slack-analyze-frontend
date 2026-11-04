@@ -13,6 +13,8 @@ export interface NotificationItem {
   channelId: string;
   channelName: string;
   channelType: ConversationType;
+  /** Slack account that captured this message. Missing on notifications saved before this was recorded. */
+  accountId?: string | null;
   ts: string;
   threadTs: string | null;
   userName: string | null;
@@ -131,6 +133,7 @@ export function addNotifications(e: LiveNotification, read: boolean): Notificati
       channelId: e.channelId,
       channelName: e.channelName,
       channelType: e.channelType,
+      accountId: e.accountId ?? null,
       ts: m.ts,
       threadTs: m.threadTs,
       userName: m.userName,

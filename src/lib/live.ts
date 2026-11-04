@@ -20,6 +20,8 @@ export interface LiveNotification {
   channelId: string;
   channelName: string;
   channelType: ConversationType;
+  /** Slack account whose browser captured these messages. */
+  accountId?: string | null;
   messages: {
     ts: string;
     threadTs: string | null;

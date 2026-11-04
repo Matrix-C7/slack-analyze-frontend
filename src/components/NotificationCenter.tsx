@@ -5,6 +5,7 @@ import { Bell, BellOff, CheckCheck, MessageSquareReply, Trash2 } from 'lucide-re
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Slide, ToastContainer, toast } from 'react-toastify';
+import { fetcher, type ChannelDetail } from '@/lib/api';
 import { fmtRelative } from '@/lib/format';
 import { useLiveEvents, type LiveNotification } from '@/lib/live';
 import {
@@ -24,10 +25,41 @@ import {
   type NotificationItem,
   type NotifyPrefs,
 } from '@/lib/notifications';
+import { useWorkspace } from '@/lib/workspace';
 import { Avatar, WorkspaceLogo } from './Avatar';
 
 /** More messages than this in one burst become a single summary toast. */
 const TOAST_BURST = 3;
+
+/**
+ * Opens a notification on the account tab that can see it.
+ * A conversation often exists for only one Slack account (a DM, or a private channel).
+ * Staying on another "View as" tab makes the app leave the target and open that tab's latest conversation instead.
+ */
+function useOpenNotification() {
+  const router = useRouter();
+  const { workspace, account, setWorkspaceId, setAccountId } = useWorkspace();
+  return async (n: NotificationItem) => {
+    markRead(n.id);
+    const sameWorkspace = workspace?.id === n.workspaceId;
+    let target = n.accountId ?? null;
+    let stayOnCurrent = false;
+    try {
+      const detail = await fetcher<ChannelDetail>(`/api/channels/${n.workspaceId}/${n.channelId}`);
+      const ids = new Set(detail.accounts.map((a) => a.id));
+      if (sameWorkspace && account?.id && ids.has(account.id)) {
+        stayOnCurrent = true;
+      } else if (!target || !ids.has(target)) {
+        target = detail.accounts[0]?.id ?? null;
+      }
+    } catch {
+      // Still open the message. The conversation view switches tabs when it can see who has it.
+    }
+    if (!sameWorkspace) setWorkspaceId(n.workspaceId);
+    if (!stayOnCurrent && target) setAccountId(target);
+    router.push(notificationHref(n));
+  };
+}
 
 function usePermission() {
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default');
@@ -64,7 +96,7 @@ function ToastBody({ n, extra }: { n: NotificationItem; extra?: number }) {
  * Messages in the conversation already on screen don't pop up (they appear in the view), but still land in the bell.
  */
 export function NotificationListener() {
-  const router = useRouter();
+  const openNotification = useOpenNotification();
   const pathname = usePathname();
   const here = useRef(pathname);
   here.current = pathname;
@@ -78,8 +110,7 @@ export function NotificationListener() {
   }, [unread, pathname]);
 
   const open = (n: NotificationItem) => {
-    markRead(n.id);
-    router.push(notificationHref(n));
+    void openNotification(n);
   };
 
   useLiveEvents((e) => {
@@ -191,7 +222,7 @@ function Toggle({ label, k, prefs, disabled }: { label: string; k: keyof NotifyP
 
 /** Bell in the rail: unread badge, recent notifications and notification settings. */
 export function NotificationBell() {
-  const router = useRouter();
+  const openNotification = useOpenNotification();
   const items = useNotifications();
   const prefs = useNotifyPrefs();
   const { permission, request } = usePermission();
@@ -291,9 +322,8 @@ export function NotificationBell() {
               <li key={n.id}>
                 <button
                   onClick={() => {
-                    markRead(n.id);
                     setOpen(false);
-                    router.push(notificationHref(n));
+                    void openNotification(n);
                   }}
                   className={clsx('flex w-full gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-hover', !n.read && 'bg-accent-soft/60')}
                 >

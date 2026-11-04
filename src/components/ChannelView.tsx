@@ -19,6 +19,12 @@ import { ThreadPanel } from './ThreadPanel';
 const PAGE = 100;
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
+/**
+ * Last conversation opened, kept across remounts (the view remounts when the account tab changes).
+ * Used to tell "the user picked another account tab" from "a link opened a conversation this tab can't see".
+ */
+let openedAs: { accountId: string | null; channelId: string | null } = { accountId: null, channelId: null };
+
 function groupByDay(messages: Message[]): Message[][] {
   const days: Message[][] = [];
   for (const m of messages) {
@@ -38,33 +44,58 @@ export function ChannelView({ workspaceId, channelId }: { workspaceId: string; c
   const { setOpen } = useMobileSidebar();
 
   const router = useRouter();
-  const { account, workspace } = useWorkspace();
+  const { account, workspace, setAccountId } = useWorkspace();
   const { isAdmin } = useAuth();
 
-  // Switching "view as" to an account that doesn't have this conversation opens that account's latest one instead.
   // Same SWR key as the sidebar, so the list is shared.
   const accountScoped = Boolean(account) && workspace?.id === workspaceId;
   const { data: accountChannels } = useSWR<Channel[]>(
     accountScoped ? `/api/channels${qs({ workspaceId, accountId: account?.id })}` : null,
     fetcher,
   );
-  useEffect(() => {
-    if (!accountScoped || !accountChannels || accountChannels.some((c) => c.id === channelId)) return;
-    const latest = accountChannels
-      .filter((c) => c.lastMessageAt)
-      .sort((a, b) => b.lastMessageAt!.localeCompare(a.lastMessageAt!))[0];
-    router.replace(latest ? `/c/${workspaceId}/${latest.id}` : '/');
-  }, [accountScoped, accountChannels, channelId, workspaceId, router]);
-  const { mutate } = useSWRConfig();
-  const [threadOf, setThreadOf] = useState<Message | null>(null);
-  const [deleting, setDeleting] = useState<Message | null>(null);
-  useEffect(() => setThreadOf(null), [workspaceId, channelId]);
   const base = `/api/channels/${workspaceId}/${channelId}`;
   const {
     data: channel,
     error: channelError,
     mutate: refreshChannel,
-  } = useSWR<ChannelDetail>(`${base}${qs({ accountId: account?.id })}`, fetcher);
+  } = useSWR<ChannelDetail>(account ? `${base}${qs({ accountId: account.id })}` : base, fetcher);
+
+  // The selected account tab only lists its own conversations. A notification (or any deep link) for a
+  // conversation another account captured must switch to that tab. A manual tab change still leaves
+  // a conversation that account doesn't have and opens its latest one.
+  useEffect(() => {
+    if (!accountScoped || !account || !accountChannels) return;
+    if (!channel && !channelError) return;
+
+    const prev = openedAs;
+    const switchedAccount = prev.channelId === channelId && prev.accountId !== null && prev.accountId !== account.id;
+    const visibleHere =
+      accountChannels.some((c) => c.id === channelId) || channel?.accounts.some((a) => a.id === account.id);
+    if (visibleHere) {
+      openedAs = { accountId: account.id, channelId };
+      return;
+    }
+
+    // A link (notification, search) opened a conversation this tab can't see: move to a tab that can.
+    // Leave openedAs on the previous tab so a follow-up still counts as a tab change if that account can't see it either.
+    if (!switchedAccount) {
+      const next = channel?.accounts.find((a) => a.id !== account.id);
+      if (next) {
+        setAccountId(next.id);
+        return;
+      }
+    }
+
+    openedAs = { accountId: account.id, channelId };
+    const latest = accountChannels
+      .filter((c) => c.lastMessageAt)
+      .sort((a, b) => b.lastMessageAt!.localeCompare(a.lastMessageAt!))[0];
+    router.replace(latest ? `/c/${workspaceId}/${latest.id}` : '/');
+  }, [accountScoped, account, accountChannels, channel, channelError, channelId, workspaceId, router, setAccountId]);
+  const { mutate } = useSWRConfig();
+  const [threadOf, setThreadOf] = useState<Message | null>(null);
+  const [deleting, setDeleting] = useState<Message | null>(null);
+  useEffect(() => setThreadOf(null), [workspaceId, channelId]);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [hasOlder, setHasOlder] = useState(false);
