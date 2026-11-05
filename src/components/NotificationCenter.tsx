@@ -5,7 +5,8 @@ import { Bell, BellOff, CheckCheck, MessageSquareReply, Trash2 } from 'lucide-re
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Slide, ToastContainer, toast } from 'react-toastify';
-import { fetcher, type ChannelDetail } from '@/lib/api';
+import { API_URL, fetcher, type ChannelDetail } from '@/lib/api';
+import { desktopNotificationsPaused, getDesktop, useDesktopPausedUntil } from '@/lib/desktop';
 import { fmtRelative } from '@/lib/format';
 import { useLiveEvents, type LiveNotification } from '@/lib/live';
 import {
@@ -62,13 +63,54 @@ function useOpenNotification() {
 }
 
 function usePermission() {
-  const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default');
-  useEffect(() => setPermission(desktopSupported() ? Notification.permission : 'unsupported'), []);
+  const [permission, setPermission] = useState<NotificationPermission | 'unsupported' | 'desktop-app'>('default');
+  useEffect(() => setPermission(getDesktop() ? 'desktop-app' : desktopSupported() ? Notification.permission : 'unsupported'), []);
   const request = async () => {
-    if (!desktopSupported()) return;
+    if (getDesktop() || !desktopSupported()) return;
     setPermission(await Notification.requestPermission());
   };
   return { permission, request };
+}
+
+/** Avatar / logo URLs can be relative to the API (archived copies); native notifications need absolute ones. */
+function absoluteUrl(url: string | null | undefined) {
+  if (!url) return null;
+  try {
+    return new URL(url, API_URL).href;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Desktop app only: keeps the taskbar / dock badge and tray icon in step with the unread count, and handles clicks on
+ * native notifications and the tray's "Mark all as read".
+ */
+function useDesktopBridge(items: NotificationItem[], unread: number, open: (n: NotificationItem) => void) {
+  const router = useRouter();
+  const latest = useRef({ items, open, router });
+  latest.current = { items, open, router };
+
+  useEffect(() => {
+    getDesktop()?.setUnreadCount(unread);
+  }, [unread]);
+
+  useEffect(() => {
+    const desktop = getDesktop();
+    if (!desktop) return;
+    desktop.setApiOrigin(API_URL);
+    const offClick = desktop.onNotificationClick(({ id, href }) => {
+      const { items, open, router } = latest.current;
+      const n = items.find((i) => i.id === id);
+      if (n) open(n);
+      else if (href) router.push(href); // cleared from the bell in the meantime
+    });
+    const offRead = desktop.onMarkAllRead(() => markRead());
+    return () => {
+      offClick();
+      offRead();
+    };
+  }, []);
 }
 
 function ToastBody({ n, extra }: { n: NotificationItem; extra?: number }) {
@@ -113,6 +155,8 @@ export function NotificationListener() {
     void openNotification(n);
   };
 
+  useDesktopBridge(items, unread, open);
+
   useLiveEvents((e) => {
     if (e.type !== 'notification') return;
     const prefs = getNotifyPrefs();
@@ -127,7 +171,9 @@ export function NotificationListener() {
     const toNotify = onScreen ? fresh.filter((n) => n.threadTs) : fresh;
     if (!toNotify.length) return;
 
-    if (prefs.sound) playChime();
+    // "Pause notifications" in the desktop app's tray silences the chime and native notifications (the bell still fills).
+    const paused = desktopNotificationsPaused();
+    if (prefs.sound && !paused) playChime();
 
     if (prefs.toast && visible) {
       const shown = toNotify.length > TOAST_BURST ? [toNotify[toNotify.length - 1]] : toNotify;
@@ -139,26 +185,41 @@ export function NotificationListener() {
       }
     }
 
-    if (prefs.desktop && desktopSupported() && Notification.permission === 'granted' && (!focused || prefs.desktopWhenFocused)) {
+    const app = getDesktop();
+    const canNotify = app ? !paused : desktopSupported() && Notification.permission === 'granted';
+    if (prefs.desktop && canNotify && (!focused || prefs.desktopWhenFocused)) {
       // One desktop notification per conversation per burst; the tag replaces an older one for the same conversation.
       const n = toNotify[toNotify.length - 1];
       const more = toNotify.length - 1;
-      const desktop = new Notification(notificationTitle(n), {
-        body: `${notificationBody(n)}${more ? `\n+${more} more in ${conversationLabel(n)}` : ''}`,
-        icon: n.avatarUrl ?? n.workspaceIconUrl ?? '/icon.svg',
-        tag: `${n.workspaceId}:${n.channelId}`,
-      });
-      desktop.onclick = () => {
-        window.focus();
-        open(n);
-        desktop.close();
-      };
+      const title = notificationTitle(n);
+      const body = `${notificationBody(n)}${more ? `\n+${more} more in ${conversationLabel(n)}` : ''}`;
+      const tag = `${n.workspaceId}:${n.channelId}`;
+      if (app) {
+        // Native notification from the desktop app (Windows toast / macOS Notification Center); clicks come back
+        // through useDesktopBridge.
+        app.notify({
+          id: n.id,
+          title,
+          body,
+          subtitle: n.workspaceName ?? undefined,
+          iconUrl: absoluteUrl(n.avatarUrl ?? n.workspaceIconUrl),
+          tag,
+          href: notificationHref(n),
+        });
+      } else {
+        const desktop = new Notification(title, { body, icon: n.avatarUrl ?? n.workspaceIconUrl ?? '/icon.svg', tag });
+        desktop.onclick = () => {
+          window.focus();
+          open(n);
+          desktop.close();
+        };
+      }
     }
   });
 
   // Ask once per browser session for desktop permission, with a toast the user clicks (browsers want a gesture).
   useEffect(() => {
-    if (!desktopSupported() || Notification.permission !== 'default' || !getNotifyPrefs().desktop) return;
+    if (getDesktop() || !desktopSupported() || Notification.permission !== 'default' || !getNotifyPrefs().desktop) return;
     try {
       if (sessionStorage.getItem('sa.notify.asked')) return;
       sessionStorage.setItem('sa.notify.asked', '1');
@@ -226,11 +287,13 @@ export function NotificationBell() {
   const items = useNotifications();
   const prefs = useNotifyPrefs();
   const { permission, request } = usePermission();
+  const inApp = permission === 'desktop-app';
+  const pausedUntil = useDesktopPausedUntil();
   const [open, setOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const unread = items.filter((i) => !i.read).length;
-  const muted = !prefs.toast && !prefs.desktop;
+  const muted = (!prefs.toast && !prefs.desktop) || pausedUntil > 0;
 
   useEffect(() => {
     if (!open) return;
@@ -292,12 +355,21 @@ export function NotificationBell() {
 
           {showSettings && (
             <div className="border-b border-line bg-subtle px-3.5 py-2.5">
-              <Toggle label="Pop-up toasts in this tab" k="toast" prefs={prefs} />
+              <Toggle label={`Pop-up toasts in this ${inApp ? 'window' : 'tab'}`} k="toast" prefs={prefs} />
               <Toggle label="Desktop notifications" k="desktop" prefs={prefs} disabled={permission === 'unsupported'} />
-              <Toggle label="…also while this tab is focused" k="desktopWhenFocused" prefs={prefs} disabled={!prefs.desktop || permission !== 'granted'} />
+              <Toggle
+                label={`…also while this ${inApp ? 'window' : 'tab'} is focused`}
+                k="desktopWhenFocused"
+                prefs={prefs}
+                disabled={!prefs.desktop || (permission !== 'granted' && !inApp)}
+              />
               <Toggle label="Sound" k="sound" prefs={prefs} />
               <Toggle label="Include bots and apps" k="bots" prefs={prefs} />
               <div className="mt-1.5 text-xs text-muted">
+                {inApp &&
+                  (pausedUntil
+                    ? `Paused from the tray icon until ${new Date(pausedUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Right-click the tray icon to resume.`
+                    : 'Native notifications, the taskbar badge and the tray icon come from the desktop app. Right-click the tray icon to pause notifications.')}
                 {permission === 'granted' && 'Desktop notifications are allowed in this browser.'}
                 {permission === 'denied' && 'Desktop notifications are blocked — allow them in the browser’s site settings.'}
                 {permission === 'unsupported' && 'Desktop notifications need https or localhost in a browser that supports them.'}

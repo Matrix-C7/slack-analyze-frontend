@@ -7,3 +7,5 @@ coverage/
 .env.local
 .DS_Store
 *.tsbuildinfo
+dist-desktop/
+brand/badge-preview.png

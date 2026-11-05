@@ -1,0 +1,13 @@
+{
+  "name": "slack-analyze-desktop",
+  "productName": "Slack Analyze",
+  "version": "0.1.0",
+  "description": "Slack Analyze desktop app: the dashboard with native notifications, unread badge and tray icon",
+  "author": "unybrands",
+  "private": true,
+  "main": "main.cjs",
+  "desktop": {
+    "appUrl": ""
+  },
+  "dependencies": {}
+}

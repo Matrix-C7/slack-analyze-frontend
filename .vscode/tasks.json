@@ -12,6 +12,18 @@
       "isBackground": true,
       "presentation": { "panel": "dedicated", "group": "dev" },
       "problemMatcher": []
+    },
+    {
+      // Next.js on :3000 plus the Electron desktop app pointed at it
+      "label": "dev: desktop",
+      "type": "shell",
+      "command": "npm run desktop:dev",
+      "options": {
+        "env": { "NEXT_PUBLIC_API_URL": "http://localhost:4000" }
+      },
+      "isBackground": true,
+      "presentation": { "panel": "dedicated", "group": "dev" },
+      "problemMatcher": []
     }
   ]
 }

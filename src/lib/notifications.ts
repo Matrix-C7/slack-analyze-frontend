@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from 'react';
 import type { ConversationType } from './api';
+import { isDesktopApp } from './desktop';
 import type { LiveNotification } from './live';
 
 /** One new Slack message as shown in the bell panel, toasts and desktop notifications. */
@@ -192,7 +193,9 @@ export function notificationBody(n: Pick<NotificationItem, 'text' | 'fileCount'>
   return n.fileCount ? `Shared ${n.fileCount === 1 ? 'a file' : `${n.fileCount} files`}` : 'New message';
 }
 
-export const desktopSupported = () => typeof window !== 'undefined' && 'Notification' in window && window.isSecureContext;
+/** Desktop notifications are possible: the desktop app (native ones), or a browser with the Notification API on https/localhost. */
+export const desktopSupported = () =>
+  isDesktopApp() || (typeof window !== 'undefined' && 'Notification' in window && window.isSecureContext);
 
 /** A short, quiet two-note chime (no audio file needed). */
 export function playChime() {

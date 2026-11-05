@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
+<title>Slack Analyze</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f7f7f8; --card: #ffffff; --text: #1d1c1d; --muted: #616061; --border: #e4e4e7;
+    --accent: #1264a3; --accent-text: #ffffff; --bad: #e01e5a; --bad-soft: #fdeef3; --brand: #4a154b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #1a1d21; --card: #222529; --text: #d1d2d3; --muted: #ababad; --border: #35373b;
+      --accent: #1d9bd1; --bad: #f2618a; --bad-soft: #3a2029;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: radial-gradient(1200px 600px at 50% -10%, rgb(122 47 132 / 0.18), transparent 70%), var(--bg);
+    color: var(--text);
+    font: 14px/1.5 "Segoe UI", -apple-system, BlinkMacSystemFont, Lato, Roboto, sans-serif;
+    display: grid; place-items: center; padding: 24px;
+    -webkit-font-smoothing: antialiased;
+  }
+  main {
+    width: min(440px, 100%); background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 32px; box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 18px 48px -12px rgb(0 0 0 / 0.18);
+    animation: in .25s ease-out;
+  }
+  @keyframes in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { main { animation: none; } .spin { animation: none !important; } }
+  .mark { width: 56px; height: 56px; display: block; margin-bottom: 20px; filter: drop-shadow(0 6px 14px rgb(74 21 75 / 0.35)); }
+  h1 { font-size: 22px; font-weight: 800; margin: 0 0 6px; letter-spacing: -0.01em; }
+  p.lead { margin: 0 0 22px; color: var(--muted); }
+  label { display: block; font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+  input {
+    width: 100%; height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: transparent; color: var(--text); font: inherit; outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  .actions { display: flex; gap: 8px; margin-top: 20px; }
+  button {
+    height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid transparent; font: inherit; font-weight: 700;
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: opacity .15s, background .15s;
+  }
+  button.primary { background: var(--accent); color: var(--accent-text); flex: 1; }
+  button.primary:hover { opacity: .92; }
+  button.ghost { background: transparent; color: var(--muted); border-color: var(--border); }
+  button.ghost:hover { color: var(--text); }
+  button:disabled { opacity: .6; cursor: default; }
+  .spin { width: 14px; height: 14px; border: 2px solid rgb(255 255 255 / .4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error {
+    display: none; margin: 0 0 18px; padding: 10px 12px; border-radius: 8px; background: var(--bad-soft); color: var(--bad);
+    font-size: 13px; border: 1px solid color-mix(in srgb, var(--bad) 25%, transparent);
+  }
+  .error.show { display: block; }
+  .error strong { display: block; }
+  footer { margin-top: 22px; color: var(--muted); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <img class="mark" alt="" src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='a' x1='0' y1='0' x2='64' y2='64' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%237a2f84'/%3E%3Cstop offset='.55' stop-color='%234a154b'/%3E%3Cstop offset='1' stop-color='%232c0a2e'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='15' fill='url(%23a)'/%3E%3Cpath d='M19 15h26a9 9 0 0 1 9 9v13a9 9 0 0 1-9 9H29.5l-8.6 7.2c-1.3 1.1-3.3.2-3.3-1.5V45.9A9 9 0 0 1 10 37V24a9 9 0 0 1 9-9z' fill='%23fff'/%3E%3Crect x='20.5' y='30' width='6' height='9' rx='3' fill='%234a154b'/%3E%3Crect x='29' y='25' width='6' height='14' rx='3' fill='%234a154b'/%3E%3Crect x='37.5' y='20' width='6' height='19' rx='3' fill='%231d9bd1'/%3E%3Ccircle cx='50.5' cy='14.5' r='6.3' fill='%232eb67d' stroke='%233f0e40' stroke-width='2.6'/%3E%3C/svg%3E">
+  <h1 id="title">Connect to your dashboard</h1>
+  <p class="lead" id="lead">Enter the address of your Slack Analyze dashboard. You only need to do this once.</p>
+  <div class="error" id="error" role="alert"></div>
+  <form id="form" novalidate>
+    <label for="url">Dashboard address</label>
+    <input id="url" type="url" inputmode="url" autocomplete="url" spellcheck="false" placeholder="https://slack-analyze.example.com" required>
+    <div class="hint">The same address you open in the browser. You can change it later from the tray icon → Settings → Change server.</div>
+    <div class="actions">
+      <button type="button" class="ghost" id="cancel" hidden>Cancel</button>
+      <button type="submit" class="primary" id="submit"><span id="submitLabel">Connect</span></button>
+    </div>
+  </form>
+  <footer id="footer">Slack Analyze desktop</footer>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const bridge = window.desktop;
+  let retryTimer = null;
+  let busy = false;
+
+  function setBusy(on, label) {
+    busy = on;
+    $('submit').disabled = on;
+    $('submit').innerHTML = on ? '<span class="spin"></span><span></span>' : '<span></span>';
+    $('submit').lastElementChild.textContent = label;
+  }
+
+  function showError(title, detail) {
+    const box = $('error');
+    box.replaceChildren();
+    const t = document.createElement('strong');
+    t.textContent = title;
+    box.append(t);
+    if (detail) box.append(document.createTextNode(detail));
+    box.classList.add('show');
+  }
+
+  /** Chromium's network error codes in plain words. */
+  function friendlyError(code) {
+    const c = String(code || '');
+    if (/INTERNET_DISCONNECTED|NETWORK_CHANGED|NETWORK_IO_SUSPENDED/.test(c)) return 'You appear to be offline.';
+    if (/NAME_NOT_RESOLVED|NAME_RESOLUTION_FAILED/.test(c)) return 'The address could not be found.';
+    if (/CONNECTION_REFUSED|CONNECTION_RESET|CONNECTION_CLOSED|ADDRESS_UNREACHABLE/.test(c)) return 'The server is not responding.';
+    if (/TIMED_OUT/.test(c)) return 'The server took too long to respond.';
+    if (/CERT|SSL/.test(c)) return 'The server’s security certificate is not valid.';
+    return c ? `Connection failed (${c}).` : 'Connection failed.';
+  }
+
+  async function connect(auto) {
+    if (busy) return;
+    clearInterval(retryTimer);
+    setBusy(true, auto ? 'Reconnecting…' : 'Connecting…');
+    const result = await bridge.connect($('url').value);
+    if (result.ok) return; // the dashboard is loading in this window
+    setBusy(false, 'Try again');
+    showError('Could not connect', ' ' + result.error);
+    if (auto) scheduleRetry();
+  }
+
+  /** While the dashboard is unreachable, retry every 15 s (and as soon as the network comes back). */
+  function scheduleRetry() {
+    let left = 15;
+    clearInterval(retryTimer);
+    const tick = () => {
+      if (busy) return;
+      $('submit').lastElementChild.textContent = `Retry now (${left}s)`;
+      if (left-- <= 0) connect(true);
+    };
+    tick();
+    retryTimer = setInterval(tick, 1000);
+  }
+
+  $('form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    connect(false);
+  });
+  $('cancel').addEventListener('click', () => bridge.cancelConnect());
+  window.addEventListener('online', () => {
+    if ($('error').classList.contains('show')) connect(true);
+  });
+
+  (async () => {
+    if (!bridge) return;
+    const info = await bridge.getConnectInfo();
+    if (!info) return;
+    $('url').value = info.url || '';
+    $('footer').textContent = `Slack Analyze desktop ${info.version}`;
+    if (info.canCancel) $('cancel').hidden = false;
+    if (info.error) {
+      $('title').textContent = "Can't reach the dashboard";
+      $('lead').textContent = 'Check your internet connection, or whether the address below is still right. We will keep trying.';
+      showError(friendlyError(info.error.description), info.error.url ? ` ${info.error.url}` : '');
+      scheduleRetry();
+    } else if (info.url) {
+      $('title').textContent = 'Change server';
+      $('lead').textContent = 'Connect this app to a different Slack Analyze dashboard.';
+    }
+    $('url').focus();
+    $('url').select();
+  })();
+</script>
+</body>
+</html>

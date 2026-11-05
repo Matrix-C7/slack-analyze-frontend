@@ -43,7 +43,7 @@ Import this repo in Vercel (root directory = repo root, framework Next.js) and s
 
 ## App mark
 
-[brand/](brand/) holds the SVG masters (`logo.svg`, `logo-small.svg` for 16 px). `node brand/export.mjs` regenerates `favicon.ico`, `icon.svg`, the Apple touch icon and the extension's toolbar icons via headless Chrome. The extension icons are written to `../slack-analyze-extension/icons` (override with `EXTENSION_DIR`); commit them in that repo.
+[brand/](brand/) holds the SVG masters (`logo.svg`, `logo-small.svg` for 16 px). `node brand/export.mjs` regenerates `favicon.ico`, `icon.svg`, the Apple touch icon, the extension's toolbar icons and the desktop app's icon, tray icons and taskbar badges (`electron/assets/`) via headless Chrome. The extension icons are written to `../slack-analyze-extension/icons` (override with `EXTENSION_DIR`); commit them in that repo.
 
 ## Notifications in the dashboard
 
@@ -52,6 +52,32 @@ Messages caught by live capture pop up in the web UI as **toasts** and **desktop
 - The **bell** in the left rail shows the unread count (also in the tab title) and the last 100 notifications; click one to jump to the message (thread replies open the thread panel). **Settings** in the bell panel turns toasts, desktop notifications, sound and bot messages on or off, per browser.
 - Desktop notifications need the browser's permission (the dashboard asks once; or use **Allow desktop notifications** in the bell's settings) and an `https://` or `localhost` address. By default they show while the dashboard tab is in the background; toasts show while it is visible.
 - Only new messages notify: history syncs, messages older than 30 minutes, joins / topic changes and the conversation you're already looking at don't pop up. Viewers only get notifications for communities they can see; admin-hidden conversations notify admins only.
+
+## Desktop app (Electron)
+
+[electron/](electron/) wraps the dashboard in a native Windows / macOS / Linux app. It loads the dashboard from its server (it doesn't bundle a copy), so it's always the deployed version, and adds:
+
+- **Native notifications** — new Slack messages appear as Windows toasts / macOS Notification Center alerts with the sender's avatar, one per conversation (a newer message replaces the older one). Clicking one brings the window forward and opens the message (thread replies open the thread). They follow the bell's settings (desktop on/off, *also while focused*, bots); the dashboard plays its own chime, so the OS sound stays off.
+- **Unread badge** — the bell's unread count appears on the **taskbar button** (Windows overlay), the **dock** (macOS) or the launcher (Linux), and in the window title: the exact count up to 99, then **99+**. On Windows it's a red disc with a light ring, pre-rendered for 100 / 125 / 150 / 200 % display scaling so it stays sharp; it turns **gray while notifications are paused**, and screen readers announce the count with the taskbar button. The taskbar button flashes on a new message while the window isn't focused (can be turned off).
+- **Tray icon** — gets a red dot when there are unread messages (gray while paused); its tooltip and menu show the exact count. Left-click opens the window; right-click: open, *Mark all as read*, **Pause notifications** (30 min / 1 h / 2 h / until 8:00 tomorrow; the bell shows the pause and the chime stays quiet), *Open at login* (starts hidden in the tray), *Keep running in the tray when closed*, *Flash the taskbar*, *Change server…*, *Quit*.
+- **Window** — closing hides to the tray (a one-time hint says so), size / position / maximized are remembered, one instance only (opening it again focuses the window). Live updates keep running while hidden.
+- **Safe browsing** — only the dashboard's own origin can use the desktop bridge; links to other sites open in the default browser; archived files open in an app window that shares the sign-in, and downloads show a *Download complete* notification. If the dashboard can't be reached, a branded connect page explains why and retries every 15 s (and when the network comes back).
+
+```bash
+npm run desktop:dev   # Next.js on :3000 + the desktop app pointed at it (start the backend first)
+npm run desktop       # desktop app only, against SA_APP_URL (default http://localhost:3000 in development)
+npm run desktop:dist  # installer in dist-desktop/ (Windows: NSIS Slack-Analyze-Setup-<version>.exe)
+```
+
+**Which dashboard it opens**: `SA_APP_URL` env → the address entered on the connect page (stored in `%APPDATA%\Slack Analyze\settings.json`) → `desktop.appUrl` in [electron/package.json](electron/package.json) → `http://localhost:3000` when not packaged. A packaged build with no address asks for it on first start. To ship an installer that opens your deployment straight away:
+
+```bash
+npx electron-builder -c.extraMetadata.desktop.appUrl=https://your-dashboard.vercel.app
+```
+
+The dashboard's session cookie is cross-site (`SameSite=None; Secure`) on Vercel, so sign-in works the same as in the browser. The tray, badge and installer images live in [electron/assets/](electron/assets/); `ONLY=desktop node brand/export.mjs` regenerates them from the brand SVGs. Taskbar badges are one sprite sheet per display scale (`badges/badge-sprite-16|20|24|32.png`: cells "1" … "99", "99+"; row 1 is the paused gray), cropped by [electron/tray.cjs](electron/tray.cjs); the export also writes an enlarged `brand/badge-preview.png` (not committed) for reviewing the design. On Vercel, set `ELECTRON_SKIP_BINARY_DOWNLOAD=1` so the web build doesn't download Electron.
+
+Notes: Windows only shows the taskbar overlay with normal-sized taskbar buttons (not "small taskbar buttons"). In development, Windows toasts are attributed to Electron; the installed app shows them as *Slack Analyze*. Installers aren't code-signed yet, so Windows SmartScreen warns on first install.
 
 ## Admin dashboard
 

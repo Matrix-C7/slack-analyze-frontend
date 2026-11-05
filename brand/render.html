@@ -1,21 +1,191 @@
 <!doctype html><html><body style="margin:0;background:#888">
 <pre id="out"></pre>
 <script>
-// Rasterizes the brand SVGs into PNG data URLs at each size (read back with --dump-dom).
-const jobs = [['logo-small.svg', 16], ['logo.svg', 32], ['logo.svg', 48], ['logo.svg', 128], ['logo.svg', 180], ['logo.svg', 512]];
+// Rasterizes the brand SVGs (and the desktop app's tray / taskbar badges) into PNG data URLs, one line per image:
+// "<key> data:image/png;base64,…" (read back by export.mjs with --dump-dom).
+const BADGE_RED = '#e01e5a';
+const BADGE_MUTED = '#8b8790';
+/** Taskbar badge labels, one sprite cell each: "1" … "99", then "99+". */
+const BADGE_LABELS = [...Array.from({ length: 99 }, (_, i) => String(i + 1)), '99+'];
+/** Windows display scales: 100 % / 125 % / 150 % / 200 % → 16 / 20 / 24 / 32 px overlay. */
+const BADGE_SIZES = [16, 20, 24, 32];
+const BADGE_THEMES = [
+  { top: '#f2486f', bottom: '#cc1149', ring: 'rgba(255,255,255,0.92)' }, // unread
+  { top: '#a29ea8', bottom: '#77737d', ring: 'rgba(255,255,255,0.85)' }, // notifications paused
+];
+
+async function svgImage(src) {
+  const svg = await (await fetch(src)).text();
+  const img = new Image();
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  await img.decode();
+  return img;
+}
+
+function canvas(size) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  return [c, ctx];
+}
+
+const FONT = '"Segoe UI Variable Display", "Segoe UI", system-ui, Arial, sans-serif';
+
+/** Rounded rectangle path (r is clamped, so r ≥ h/2 gives a pill and w = h a circle). */
+function roundRect(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/**
+ * One taskbar overlay badge drawn into a size×size cell at (ox, oy). Windows draws the overlay over the bottom-right of
+ * the app icon, so the badge sits at the bottom of the cell: a circle for one digit, a pill for "12" or "99+".
+ */
+function drawBadge(ctx, ox, oy, size, label, theme) {
+  const s = size / 16; // design grid: 16 units
+  const ring = Math.max(1, Math.round(s)); // light ring that separates the badge from the icon underneath
+  // Windows gives the overlay a square cell, so every count uses the full cell as one consistent disc: the biggest
+  // possible glyphs at 100 % scaling, and no badge that changes shape as the count grows.
+  const h = size;
+  const w = size;
+  const x = ox + (size - w);
+  const y = oy + (size - h);
+
+  ctx.save();
+  // ring
+  ctx.fillStyle = theme.ring;
+  roundRect(ctx, x, y, w, h, h / 2);
+  ctx.fill();
+  // body: soft vertical gradient (lighter top) reads as a crisp, slightly raised badge
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, theme.top);
+  g.addColorStop(1, theme.bottom);
+  ctx.fillStyle = g;
+  roundRect(ctx, x + ring, y + ring, w - ring * 2, h - ring * 2, (h - ring * 2) / 2);
+  ctx.fill();
+  // top highlight
+  if (size >= 20) {
+    const hl = ctx.createLinearGradient(0, y + ring, 0, y + h / 2);
+    hl.addColorStop(0, 'rgba(255,255,255,0.28)');
+    hl.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = hl;
+    roundRect(ctx, x + ring, y + ring, w - ring * 2, (h - ring * 2) / 2, (h - ring * 2) / 2);
+    ctx.fill();
+  }
+
+  // label, optically centred from the glyphs' measured bounds (not the font box)
+  const inner = h - ring * 2;
+  const plus = label.endsWith('+');
+  const digits = plus ? label.slice(0, -1) : label;
+  const px = inner * (label.length === 1 ? 0.8 : label.length === 2 ? 0.66 : 0.56);
+  ctx.font = `700 ${px}px ${FONT}`;
+  ctx.letterSpacing = label.length > 1 ? `${-0.04 * px}px` : '0px';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#fff';
+  const m = ctx.measureText(digits);
+  const plusPx = px * 0.78;
+  let plusW = 0;
+  if (plus) {
+    ctx.font = `700 ${plusPx}px ${FONT}`;
+    plusW = ctx.measureText('+').width * 0.9;
+    ctx.font = `700 ${px}px ${FONT}`;
+  }
+  const textW = m.actualBoundingBoxLeft + m.actualBoundingBoxRight + plusW;
+  const glyphH = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+  const tx = x + (w - textW) / 2 + m.actualBoundingBoxLeft;
+  const ty = y + (h - glyphH) / 2 + m.actualBoundingBoxAscent;
+  ctx.fillText(digits, tx, ty);
+  if (plus) {
+    // a smaller, raised "+" keeps "99+" legible in 16 px
+    ctx.font = `700 ${plusPx}px ${FONT}`;
+    ctx.fillText('+', tx + m.actualBoundingBoxRight - 0.05 * px, ty - glyphH * 0.32);
+  }
+  ctx.restore();
+}
+
+/** Sprite sheet for one display scale: a cell per label, row 0 = unread (red), row 1 = paused (gray). */
+function badgeSprite(size) {
+  const c = document.createElement('canvas');
+  c.width = size * BADGE_LABELS.length;
+  c.height = size * BADGE_THEMES.length;
+  const ctx = c.getContext('2d');
+  BADGE_THEMES.forEach((theme, row) => BADGE_LABELS.forEach((label, i) => drawBadge(ctx, i * size, row * size, size, label, theme)));
+  return c;
+}
+
+/** Preview sheet (not shipped): a few badges per size, enlarged 4× without smoothing, to check pixel quality. */
+function badgePreview() {
+  const picks = ['1', '7', '12', '48', '99', '99+'];
+  const zoom = 4;
+  const c = document.createElement('canvas');
+  c.width = picks.length * 34 * zoom;
+  c.height = BADGE_SIZES.length * 2 * 34 * zoom;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#3f0e40';
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.imageSmoothingEnabled = false;
+  BADGE_SIZES.forEach((size, si) =>
+    BADGE_THEMES.forEach((theme, ti) =>
+      picks.forEach((label, pi) => {
+        const [cell, cctx] = canvas(size);
+        drawBadge(cctx, 0, 0, size, label, theme);
+        ctx.drawImage(cell, pi * 34 * zoom + 4, (si * 2 + ti) * 34 * zoom + 4, size * zoom, size * zoom);
+      }),
+    ),
+  );
+  return c;
+}
+
+/** Tray icon with a "unread" dot cut out of the bottom-right corner, like Slack (gray while notifications are paused). */
+function trayUnread(size, logo, color = BADGE_RED) {
+  const [c, ctx] = canvas(size);
+  ctx.drawImage(logo, 0, 0, size, size);
+  const dot = size * 0.26;
+  const cx = size - dot - size * 0.02;
+  const cy = size - dot - size * 0.02;
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.beginPath();
+  ctx.arc(cx, cy, dot + size / 12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(cx, cy, dot, 0, Math.PI * 2);
+  ctx.fill();
+  return c;
+}
+
 (async () => {
+  const small = await svgImage('logo-small.svg');
+  const logo = await svgImage('logo.svg');
+  const jobs = [];
+  // App mark: logo-small for 16 px, the full mark above that.
+  for (const size of [16, 24, 32, 48, 64, 128, 180, 256, 512]) {
+    jobs.push([`logo-${size}`, () => {
+      const [c, ctx] = canvas(size);
+      ctx.drawImage(size === 16 ? small : logo, 0, 0, size, size);
+      return c;
+    }]);
+  }
+  jobs.push(['tray-unread-16', () => trayUnread(16, small)]);
+  jobs.push(['tray-unread-32', () => trayUnread(32, logo)]);
+  jobs.push(['tray-muted-16', () => trayUnread(16, small, BADGE_MUTED)]);
+  jobs.push(['tray-muted-32', () => trayUnread(32, logo, BADGE_MUTED)]);
+  await document.fonts.ready;
+  for (const size of BADGE_SIZES) jobs.push([`badge-sprite-${size}`, () => badgeSprite(size)]);
+  jobs.push(['badge-preview', badgePreview]);
+
   const lines = [];
-  for (const [src, size] of jobs) {
-    const svg = await (await fetch(src)).text();
-    const img = new Image();
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-    await img.decode();
-    const c = document.createElement('canvas');
-    c.width = c.height = size;
-    const ctx = c.getContext('2d');
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, 0, 0, size, size);
-    lines.push(`${size} ${c.toDataURL('image/png')}`);
+  for (const [key, draw] of jobs) {
+    const c = draw();
+    lines.push(`${key} ${c.toDataURL('image/png')}`);
     document.body.append(Object.assign(c, { style: 'margin:8px' }));
   }
   document.getElementById('out').textContent = lines.join('\n');
