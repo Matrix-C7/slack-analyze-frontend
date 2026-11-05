@@ -40,6 +40,7 @@
   "build": {
     "appId": "com.unybrands.slackanalyze",
     "productName": "Slack Analyze",
+    "electronDist": "node_modules/electron/dist",
     "copyright": "Copyright © 2026 unybrands",
     "directories": {
       "app": "electron",

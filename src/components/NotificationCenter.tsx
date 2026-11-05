@@ -165,7 +165,9 @@ export function NotificationListener() {
 
     const visible = document.visibilityState === 'visible';
     const focused = visible && document.hasFocus();
-    const onScreen = visible && here.current === `/c/${data.workspaceId}/${data.channelId}`;
+    // Only "seen" when the user is actually looking: a visible but unfocused window (behind other apps, other
+    // monitor) still counts as away, so messages in the open conversation stay unread and notify like Slack does.
+    const onScreen = focused && here.current === `/c/${data.workspaceId}/${data.channelId}`;
     // Thread replies aren't visible in the channel view, so they still notify there.
     const fresh = addNotifications(data, onScreen && data.messages.every((m) => !m.threadTs));
     const toNotify = onScreen ? fresh.filter((n) => n.threadTs) : fresh;
