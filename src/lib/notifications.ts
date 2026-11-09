@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from 'react';
 import type { ConversationType } from './api';
+import { emojify } from './format';
 import type { LiveNotification } from './live';
 
 /** One new Slack message as shown in the bell panel, toasts and desktop notifications. */
@@ -187,7 +188,7 @@ export function notificationTitle(n: NotificationItem) {
 }
 
 export function notificationBody(n: Pick<NotificationItem, 'text' | 'fileCount'>) {
-  const text = n.text.trim();
+  const text = emojify(n.text.trim());
   if (text) return text;
   return n.fileCount ? `Shared ${n.fileCount === 1 ? 'a file' : `${n.fileCount} files`}` : 'New message';
 }

@@ -79,7 +79,33 @@ const EMOJI: Record<string, string> = {
   sweat_smile: '😅', rolling_on_the_floor_laughing: '🤣', grinning: '😀', star: '⭐', heart_eyes: '😍', sob: '😭',
   warning: '⚠️', point_up: '☝️', bulb: '💡', memo: '📝', party_popper: '🎉', saluting_face: '🫡', handshake: '🤝',
   heavy_plus_sign: '➕', exclamation: '❗', question: '❓', moneybag: '💰', chart_with_upwards_trend: '📈',
+  simple_smile: '🙂', slightly_frowning_face: '🙁', smiley: '😃', grin: '😁', laughing: '😆', satisfied: '😆', wink: '😉',
+  blush: '😊', innocent: '😇', upside_down_face: '🙃', relieved: '😌', kissing_heart: '😘', yum: '😋', stuck_out_tongue: '😛',
+  stuck_out_tongue_winking_eye: '😜', sunglasses: '😎', smirk: '😏', neutral_face: '😐', expressionless: '😑', unamused: '😒',
+  roll_eyes: '🙄', face_with_rolling_eyes: '🙄', grimacing: '😬', pensive: '😔', confused: '😕', disappointed: '😞',
+  worried: '😟', cry: '😢', scream: '😱', flushed: '😳', rage: '😡', angry: '😠', sleeping: '😴', mask: '😷',
+  nerd_face: '🤓', hugging_face: '🤗', hugs: '🤗', star_struck: '🤩', partying_face: '🥳', zany_face: '🤪', shushing_face: '🤫',
+  face_with_monocle: '🧐', exploding_head: '🤯', pleading_face: '🥺', melting_face: '🫠', face_palm: '🤦', facepalm: '🤦',
+  shrug: '🤷', man_shrugging: '🤷‍♂️', woman_shrugging: '🤷‍♀️', ok: '🆗', v: '✌️', crossed_fingers: '🤞', call_me_hand: '🤙',
+  point_right: '👉', point_left: '👈', point_down: '👇', raised_hand: '✋', open_hands: '👐', writing_hand: '✍️',
+  thumbs_up: '👍', heart_hands: '🫶', blue_heart: '💙', green_heart: '💚', purple_heart: '💜', yellow_heart: '💛',
+  broken_heart: '💔', sparkles: '✨', star2: '🌟', boom: '💥', zap: '⚡', sunny: '☀️', coffee: '☕', beers: '🍻', cake: '🍰',
+  gift: '🎁', trophy: '🏆', medal: '🏅', dart: '🎯', bell: '🔔', lock: '🔒', key: '🔑', link: '🔗', calendar: '📅',
+  date: '📅', email: '📧', phone: '📱', computer: '💻', bug: '🐛', wrench: '🔧', hammer_and_wrench: '🛠️', gear: '⚙️',
+  mag: '🔍', pushpin: '📌', paperclip: '📎', clipboard: '📋', bar_chart: '📊', chart_with_downwards_trend: '📉',
+  hourglass: '⌛', alarm_clock: '⏰', stopwatch: '⏱️', no_entry: '⛔', no_entry_sign: '🚫', red_circle: '🔴',
+  large_green_circle: '🟢', large_blue_circle: '🔵', white_circle: '⚪', black_circle: '⚫', arrow_right: '➡️',
+  arrow_left: '⬅️', arrow_up: '⬆️', arrow_down: '⬇️', heavy_minus_sign: '➖', heavy_multiplication_x: '✖️',
+  ballot_box_with_check: '☑️', grey_question: '❔', grey_exclamation: '❕', bangbang: '‼️', money_with_wings: '💸',
+  dollar: '💵', euro: '💶', package: '📦', truck: '🚚', ship: '🚢', airplane: '✈️', house: '🏠',
+  dog: '🐶', cat: '🐱', see_no_evil: '🙈', hear_no_evil: '🙉', speak_no_evil: '🙊', skull: '💀', ghost: '👻',
+  robot_face: '🤖', alien: '👽', poop: '💩', hankey: '💩',
 };
+
+/** Replaces known `:shortcode:` emoji in message text with the emoji itself; unknown codes stay as typed. */
+export function emojify(text: string) {
+  return text.replace(/:([a-z0-9_+'-]+)(::skin-tone-\d)?:/gi, (all, code: string) => EMOJI[code.toLowerCase()] ?? all);
+}
 export function emoji(code: string) {
   const base = code.replace(/::skin-tone-\d$/, '');
   if (EMOJI[base]) return EMOJI[base];

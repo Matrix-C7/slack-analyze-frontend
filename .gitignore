@@ -7,3 +7,7 @@ coverage/
 .env.local
 .DS_Store
 *.tsbuildinfo
+
+# Electron desktop build output
+dist-desktop/
+brand/badge-preview.png

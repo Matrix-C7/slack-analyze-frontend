@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { MessageSquareText, Trash2 } from 'lucide-react';
 import { Fragment } from 'react';
 import type { Message } from '@/lib/api';
-import { emoji, fmtDateTime, fmtTime } from '@/lib/format';
+import { emoji, emojify, fmtDateTime, fmtTime } from '@/lib/format';
 import { Attachments } from './Attachments';
 import { Avatar } from './Avatar';
 
@@ -127,7 +127,7 @@ export function MessageItem({
           </div>
         )}
         <div className="whitespace-pre-wrap break-words leading-[1.47]">
-          <RichText text={m.text} highlight={highlight} />
+          <RichText text={emojify(m.text)} highlight={highlight} />
           {m.isEdited && <span className="ml-1 text-xs text-muted">(edited)</span>}
         </div>
         <MessageMeta m={m} onOpenThread={onOpenThread} />
