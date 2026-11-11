@@ -74,7 +74,7 @@ function FileArchive() {
       title={<span className="flex items-center gap-2"><HardDrive size={16} className="text-accent" /> File archive</span>}
       actions={
         <span className="flex items-center gap-2">
-          <Badge tone="accent" title={`Up to ${fmtBytes(data.maxBytes)} per file`}>{data.storage === 's3' ? 'S3 storage' : 'Local disk'}</Badge>
+          <Badge tone="accent" title={`Up to ${fmtBytes(data.maxBytes)} per file`}>{data.storage === 'gdrive' ? 'Google Drive' : 'Local disk'}</Badge>
           {c.failed > 0 && (
             <Button onClick={() => retry('failed')} busy={busy === 'failed'}>
               <RotateCcw size={14} /> Retry failed

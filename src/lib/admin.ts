@@ -161,7 +161,7 @@ export { fmtBytes } from './format';
 
 /** File archive status (Admin → Overview). */
 export interface AdminFiles {
-  storage: 'local' | 's3';
+  storage: 'local' | 'gdrive';
   maxBytes: number;
   counts: { stored: number; pending: number; failed: number; skipped: number };
   /** Distinct stored contents and their total size (a file shared twice is stored once). */
