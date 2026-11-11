@@ -2,9 +2,9 @@
 
 import clsx from 'clsx';
 import { ChevronLeft, ChevronRight, CloudOff, Download, ExternalLink, FileText, Film, ImageIcon, Loader2, Paperclip, X } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { type MouseEvent, useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { type FileRef, fileContentUrl } from '@/lib/api';
+import { ApiError, type FileRef, downloadFile, fileContentUrl, openFile } from '@/lib/api';
 import { fmtBytes } from '@/lib/format';
 
 const isImage = (f: FileRef) => f.status === 'stored' && (f.kind === 'image' || f.mimeType?.startsWith('image/') === true);
@@ -28,22 +28,56 @@ const STATUS_NOTE: Record<Exclude<FileRef['status'], 'stored'>, { label: string;
   skipped: { label: 'Only in Slack', title: 'Not archived: over the size limit, a file type that is turned off, or an external link' },
 };
 
+/**
+ * Runs a file download/open through fetch (the session cookie only reaches the API from inside the page),
+ * with a busy flag for a spinner.
+ */
+function useFileAction(action: (f: FileRef) => Promise<void>) {
+  const [busy, setBusy] = useState(false);
+  const run = useCallback(
+    async (e: MouseEvent, f: FileRef) => {
+      e.preventDefault();
+      if (busy) return;
+      setBusy(true);
+      try {
+        await action(f);
+      } catch (err) {
+        if (!(err instanceof ApiError && err.status === 401)) alert(`Could not get the file: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [action, busy],
+  );
+  return [busy, run] as const;
+}
+
+/** Download button for an archived file. */
+function DownloadButton({ f, className, size = 16, label }: { f: FileRef; className: string; size?: number; label?: string }) {
+  const [busy, run] = useFileAction(downloadFile);
+  return (
+    <a href={fileContentUrl(f, true)} onClick={(e) => run(e, f)} title="Download" aria-label={`Download ${f.name ?? 'file'}`} aria-busy={busy} className={className}>
+      {busy ? <Loader2 size={size} className="animate-spin" /> : <Download size={size} />}
+      {label}
+    </a>
+  );
+}
+
 /** A file we hold a copy of: download from the archive; PDFs also open in the browser. */
 function StoredFileCard({ f }: { f: FileRef }) {
+  const [opening, open] = useFileAction(openFile);
   return (
     <div className="flex w-72 max-w-full items-center gap-3 rounded-lg border border-line bg-bg px-3 py-2 shadow-card">
       <span className="flex h-9 w-9 flex-none items-center justify-center rounded-md bg-accent-soft">
-        <KindIcon kind={f.kind} />
+        {opening ? <Loader2 size={18} className="animate-spin text-accent" /> : <KindIcon kind={f.kind} />}
       </span>
       <div className="min-w-0 flex-1">
-        <a href={fileContentUrl(f)} target="_blank" rel="noreferrer" className="block truncate text-sm font-semibold hover:underline" title={f.name ?? undefined}>
+        <a href={fileContentUrl(f)} onClick={(e) => open(e, f)} className="block truncate text-sm font-semibold hover:underline" title={f.name ?? undefined}>
           {f.name || 'Attachment'}
         </a>
         <div className="truncate text-xs text-muted">{fileMeta(f) || 'File'}</div>
       </div>
-      <a href={fileContentUrl(f, true)} title="Download" aria-label={`Download ${f.name ?? 'file'}`} className="rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-ink">
-        <Download size={16} />
-      </a>
+      <DownloadButton f={f} className="rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-ink" />
     </div>
   );
 }
@@ -136,9 +170,7 @@ function Lightbox({ images, index, onIndex, onClose }: { images: FileRef[]; inde
               .join(' · ')}
           </div>
         </div>
-        <a href={fileContentUrl(f, true)} className="rounded-md p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white" title="Download">
-          <Download size={18} />
-        </a>
+        <DownloadButton f={f} size={18} className="rounded-md p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white" />
         <a href={f.url} target="_blank" rel="noreferrer noopener" className="rounded-md p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white" title="Open in Slack">
           <ExternalLink size={18} />
         </a>
@@ -189,9 +221,7 @@ export function Attachments({ files }: { files: FileRef[] }) {
           <video controls preload="metadata" src={fileContentUrl(f)} onError={() => markBroken(f.id)} className="max-h-80 max-w-[min(100%,480px)] rounded-lg border border-line bg-black shadow-card" />
           <figcaption className="mt-1 flex items-center gap-2 text-xs text-muted">
             <span className="truncate">{f.name}</span>
-            <a href={fileContentUrl(f, true)} className="flex items-center gap-1 font-semibold text-accent hover:underline">
-              <Download size={12} /> Download
-            </a>
+            <DownloadButton f={f} size={12} label="Download" className="flex items-center gap-1 font-semibold text-accent hover:underline" />
           </figcaption>
         </figure>
       ))}

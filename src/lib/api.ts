@@ -237,6 +237,53 @@ export async function apiSend<T = { ok: boolean }>(method: 'POST' | 'PUT' | 'PAT
   return res.json() as Promise<T>;
 }
 
+/**
+ * Fetches an archived file with the session cookie. Plain links to the API can't be used for downloads: the
+ * session cookie is partitioned to the dashboard's site, so a top-level navigation to the API arrives without it.
+ */
+async function fetchFileBlob(f: Pick<FileRef, 'id'>, download: boolean): Promise<Blob> {
+  const res = await fetch(fileContentUrl(f, download), { credentials: 'include' });
+  if (!res.ok) throw await errorFrom(res);
+  return res.blob();
+}
+
+/** Downloads an archived file to the user's computer. */
+export async function downloadFile(f: Pick<FileRef, 'id' | 'name'>): Promise<void> {
+  const url = URL.createObjectURL(await fetchFileBlob(f, true));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = f.name || `file-${f.id}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+/** Types safe to show from a blob: URL, which runs with the dashboard's origin (so never HTML, SVG or scripts). */
+const INLINE_SAFE = /^(application\/pdf|image\/(png|jpe?g|gif|webp|avif|bmp)|video\/|audio\/|text\/plain)/i;
+
+/**
+ * Opens an archived file in a new tab (PDFs, images, text). Anything else is downloaded instead.
+ * The tab is opened before the fetch so popup blockers allow it.
+ */
+export async function openFile(f: Pick<FileRef, 'id' | 'name'>): Promise<void> {
+  const tab = window.open('', '_blank');
+  try {
+    const blob = await fetchFileBlob(f, false);
+    if (!INLINE_SAFE.test(blob.type)) {
+      tab?.close();
+      return downloadFile(f);
+    }
+    const url = URL.createObjectURL(blob);
+    if (tab) tab.location.href = url;
+    else window.location.href = url;
+    setTimeout(() => URL.revokeObjectURL(url), 5 * 60_000);
+  } catch (err) {
+    tab?.close();
+    throw err;
+  }
+}
+
 /** Builds a query string, dropping empty values. */
 export function qs(params: Record<string, string | number | boolean | null | undefined | string[]>): string {
   const sp = new URLSearchParams();
