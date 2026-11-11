@@ -1,4 +1,4 @@
-export const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/+$/, '');
+export const API_URL = (process.env.NEXT_API_URL || 'http://localhost:4000').replace(/\/+$/, '');
 
 export type ConversationType = 'public' | 'private' | 'dm' | 'group_dm' | 'unknown';
 

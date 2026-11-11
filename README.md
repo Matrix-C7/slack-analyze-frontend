@@ -33,14 +33,14 @@ Start [slack-analyze-backend](https://github.com/core7matrix/slack-analyze-backe
 
 ```bash
 npm install
-npm run dev        # http://localhost:3000, talks to NEXT_PUBLIC_API_URL (default http://localhost:4000)
+npm run dev        # http://localhost:3000, talks to NEXT_API_URL (default http://localhost:4000)
 ```
 
 Or in VS Code / Cursor: **Tasks: Run Task → dev: frontend**. Copy [.env.example](.env.example) to `.env.local` to point at another backend.
 
 ## Deploy (Vercel)
 
-Import this repo in Vercel (root directory = repo root, framework Next.js) and set `NEXT_PUBLIC_API_URL` to the backend project, e.g. `https://slack-analyze-api.vercel.app`. The backend is its own Vercel project. On Vercel it already uses a cross-site session cookie (`SameSite=None`, `Secure`) and trusts the proxy.
+Import this repo in Vercel (root directory = repo root, framework Next.js) and set `NEXT_API_URL` to the backend URL, e.g. `https://slack-analyze-backend.onrender.com`. It is baked in at build time, so **redeploy** after changing it.
 
 ## App mark
 
